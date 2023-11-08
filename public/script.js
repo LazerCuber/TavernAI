@@ -39,7 +39,9 @@ export const gap_holder = 120;
 export var online_status = 'no_connection';
 var chat_name;
 const VERSION = '1.5.1';
-/*
+
+var is_openai_image_input = false;
+var openai_image_input = '';
 var chloeMes = {
         name: 'Chloe',
         is_user: false,
@@ -47,10 +49,10 @@ var chloeMes = {
         create_date: 0,
         mes: '*You went inside. The air smelled of fried meat, tobacco and a hint of wine. A dim light was cast by candles, and a fire crackled in the fireplace. It seems to be a very pleasant place. Behind the wooden bar is an elf waitress, she is smiling. Her ears are very pointy, and there is a twinkle in her eye. She wears glasses and a white apron. As soon as she noticed you, she immediately came right up close to you.*\n\n' +
             ' Hello there! How is your evening going?' +
-            '<div id="characloud_img"><img src="img/tavern.png" id="chloe_star_dust_city"></div>\n<a id="verson" href="https://github.com/TavernAI/TavernAI" target="_blank">@@@TavernAI v'+VERSION+'@@@</a><a href="https://boosty.to/tavernai" target="_blank"><div id="characloud_url"><img src="img/cloud_logo.png"><div id="characloud_title">Support</div></div></a><br><br><br><br>',
+            '<div id="characloud_img"><img src="img/tavern.png" id="chloe_star_dust_city"></div>\n<a id="verson" href="https://github.com/TavernAI/TavernAI" target="_blank">@@@TavernAI v'+VERSION+'@@@</a><a href="https://boosty.to/tavernai" target="_blank"><div id="characloud_url"><img src="img/heart.png" style="width:18px; heigth:18px; margin-right:2px;"><div id="characloud_title">Support</div></div></a><br><br><br><br>',
         chid: -2
     };
-*/
+/*
 var chloeMes = {
         name: 'Chloe',
         is_user: false,
@@ -61,6 +63,7 @@ var chloeMes = {
             '<div id="characloud_img"><img src="img/tavern_summer.png" id="chloe_star_dust_city"></div>\n<a id="verson" href="https://github.com/TavernAI/TavernAI" target="_blank">@@@TavernAI v'+VERSION+'@@@</a><a href="https://boosty.to/tavernai" target="_blank"><div id="characloud_url"><img src="img/heart.png" style="width:18px; heigth:18px; margin-right:2px;"><div id="characloud_title">Support</div></div></a><br><br><br><br>',
         chid: -2
     };
+*/
 export var chat = [chloeMes];
 
 
@@ -192,7 +195,7 @@ export function isChatModel() { // Checking is it chat model (for OpenAI and pro
     }else if(main_api === 'proxy'){
         checked_model = model_proxy;
     }
-    if (checked_model === 'text-davinci-003' || checked_model === 'text-davinci-002' || checked_model === 'text-curie-001' || checked_model === 'text-babbage-001' || checked_model === 'text-ada-001' || checked_model === 'code-davinci-002') {
+    if (checked_model === 'text-davinci-003' || checked_model === 'text-davinci-002' || checked_model === 'text-curie-001' || checked_model === 'text-babbage-001' || checked_model === 'text-ada-001' || checked_model === 'code-davinci-002'|| checked_model === 'gpt-3.5-turbo-instruct') {
         return false;
     } else {
         return true;
@@ -776,6 +779,7 @@ $(document).ready(function(){
                     getBackgrounds();
                     getUserAvatars();
                     
+                    
             });
             
             
@@ -1345,7 +1349,7 @@ $(document).ready(function(){
         var avatarImg = "User Avatars/"+user_avatar;
         if(!mes.is_user){
             if(Characters.selectedID === undefined) {
-                avatarImg = "img/chloe_summer.png";
+                avatarImg = "img/chloe.png";
             } else {
                 //mes.chid = mes.chid || parseInt(Characters.selectedID);
                 if(!is_room)
@@ -1841,6 +1845,10 @@ $(document).ready(function(){
                     var is_add_personality = false;
 
                     if ((main_api === 'openai' || main_api === 'proxy') && isChatModel()) { // Jailbreak
+                        
+                        if(is_openai_image_input){
+                            arrMes[arrMes.length-1] += '<!load_img_openai!>';
+                        }
                         if (SystemPrompt.user_jailbreak_prompt.length > 0) {
                             arrMes[arrMes.length-1] = arrMes[arrMes.length-1]+'\n'+SystemPrompt.user_jailbreak_prompt.replace(/{{user}}/gi, name1)
                                     .replace(/{{char}}/gi, name2)
@@ -1908,6 +1916,7 @@ $(document).ready(function(){
                                 item = item.replace(name1+':', 'You:');
                             }
                         }
+
                         mesSend[mesSend.length] = item;
                         //chatString = chatString+item;
                     });
@@ -2030,15 +2039,42 @@ $(document).ready(function(){
                         if (SystemPrompt.system_prompt.length > 0 && this_system_depth === i  && SystemPrompt.system_depth <= SystemPrompt.system_depth_max) {
                             finalPromt[i + 1] = {"role": "system", "content": item};
                         } else {
-                            if (SystemPrompt.jailbreak_prompt.length > 0 && this_jailbreak_depth === i) {
+                            if (SystemPrompt.jailbreak_prompt.length > 0 && this_jailbreak_depth+1 === i) {
                                 finalPromt[i + 1] = {"role": "system", "content": item};
                             } else {
                                 if (item.indexOf(name1 + ':') === 0) {
-                                    finalPromt[i + 1] = {"role": "user", "content": item};
+                                    if(item.indexOf('<!load_img_openai!>') !== -1){
+                                        is_openai_image_input = false;
+                                        
+                                        $('#ai_image_input').val('');
+                                        selectImage.show();
+                                        imageSelected.hide();
+                                        
+                                        item = item.replace(/<!load_img_openai!>/gi, '');
+                                        finalPromt[i + 1] = {
+                                            role: 'user',
+                                            content: [
+                                                {
+                                                    type: 'text',
+                                                    text: item
+                                                },
+                                                {
+                                                    type: 'image_url',
+                                                    image_url: {
+                                                        url: `data:image/jpeg;base64,${openai_image_input}`
+                                                    }
+                                                }
+                                            ]
+                                        };
+                                    }else{
+                                        finalPromt[i + 1] = {"role": "user", "content": item};
+                                    }
+                                    
                                 } else {
                                     finalPromt[i + 1] = {"role": "assistant", "content": item};
                                 }
                             }
+
                         }
 
                     });
@@ -2497,7 +2533,50 @@ $(document).ready(function(){
             $( "#loading_mes" ).css("display", "none");
         }
     }
+    
+    //<OpenAI image input>
+    const imageInput = $('#ai_image_input')[0];
+    const selectImage = $('#ai-select-image');
+    const imageSelected = $('#ai-image-selected');
 
+
+    $('#ai_image_picker').click(() => {
+      $('#ai_image_input').trigger('click'); 
+    });
+    $('#ai_image_input').on('change', async function () {
+        if (this.files.length) {
+            selectImage.hide();
+            imageSelected.show();
+        }
+        const imageFile = imageInput.files[0];
+
+        // Use jQuery ajax to convert file to base64 
+        openai_image_input = await getBase64Image(imageFile);
+        is_openai_image_input = true;
+    });
+    function getBase64Image(imageFile) {
+        return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () {
+                resolve(reader.result.replace(/^data:image\/[a-z]+;base64,/, ''));
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(imageFile);
+        });
+    }
+    function aiImagePickerInit(){
+        $('#ai_image_picker').css("display", 'none');
+        if (main_api === 'openai' && model_openai === 'gpt-4-vision-preview') {
+            console.log(111)
+            $('#ai_image_picker').css("display", 'block');
+        }
+        if (main_api === 'proxy' && model_proxy === 'gpt-4-vision-preview') {
+            $('#ai_image_picker').css("display", 'block');
+        }
+    }
+    //</OpenAI image input>
+    
+    
     function getIDsByNames(ch_names) {
         let ids = [];
         ch_names.forEach(function(name) {
@@ -2675,7 +2754,7 @@ $(document).ready(function(){
                 }
             }
         });
-        var save_chat = [{user_name:default_user_name, character_name:name2,create_date: chat_create_date, notes: winNotes.text, notes_type: winNotes.strategy, mode: Tavern.mode}, ...chat];
+        var save_chat = [{user_name:name1, character_name:name2,create_date: chat_create_date, notes: winNotes.text, notes_type: winNotes.strategy, mode: Tavern.mode}, ...chat];
         if(chat_name !== undefined){
             save_chat[0].chat_name = chat_name;
         }
@@ -2733,6 +2812,7 @@ $(document).ready(function(){
                     chat_name = chat[0]['chat_name'];
                     winNotes.text = chat[0].notes || "";
                     winNotes.strategy = chat[0].notes_type || "discr";
+                    name1 = chat[0].user_name;
                     if(!winNotes.text || !winNotes.text.length) {
                         let defaultWpp = '[Character("'+Characters.id[Characters.selectedID].name+'"){}]';
                         try {
@@ -3465,6 +3545,16 @@ $(document).ready(function(){
                 return;
             });
         }
+        if(popup_type === 'change_username'){
+            name1 = $("#your_name").val();
+            if(name1 === undefined || name1 == '') name1 = default_user_name;
+            $('.mes').each(function () {
+                if ($(this).attr('is_user') === 'true') {
+                    $(this).find('.ch_name').text(name1);
+                }
+            });
+            saveSettings();
+        }
         if(popup_type === 'delete_chat'){
             jQuery.ajax({
                 type: 'POST', // 
@@ -3520,6 +3610,11 @@ $(document).ready(function(){
                 break;
             case 'new_chat':
 
+                $("#dialogue_popup_ok").css("background-color", "#191b31CC");
+                $("#dialogue_popup_ok").text("Yes");
+                break;
+            case 'change_username':
+                text = `<h3 class="alert">${text}</h3>`;
                 $("#dialogue_popup_ok").css("background-color", "#191b31CC");
                 $("#dialogue_popup_ok").text("Yes");
                 break;
@@ -4020,6 +4115,10 @@ $(document).ready(function(){
         horde_model = "";
         $('#horde_model_select').empty();
         $('#horde_model_select').append($('<option></option>').val('').html('-- Connect to Horde for models --'));
+        
+        //OpenAI and Proxy
+        aiImagePickerInit();
+        openAIChangeMaxContextForModels();
     });
     function changeMainAPI(){
         $('#kobold_api').css("display", "none");
@@ -5131,6 +5230,8 @@ $(document).ready(function(){
                             }
                         }, 2000);
                     }
+                    
+                    aiImagePickerInit();
 
                     
                 }
@@ -5850,14 +5951,7 @@ $(document).ready(function(){
 
     $("#your_name_button").click(function() {
         if(!Tavern.is_send_press){
-            name1 = $("#your_name").val();
-            if(name1 === undefined || name1 == '') name1 = default_user_name;
-            $('.mes').each(function () {
-                if ($(this).attr('is_user') === 'true') {
-                    $(this).find('.ch_name').text(name1);
-                }
-            });
-            saveSettings();
+            callPopup('Change your name for this chat?','change_username')
             
         }
     });
@@ -6146,6 +6240,7 @@ $(document).ready(function(){
         }else if(main_api === 'proxy'){
             model_proxy = $('#model_openai_select').find(":selected").val();
         }
+        aiImagePickerInit();
         openAIChangeMaxContextForModels();
         saveSettings();
     });
@@ -6154,6 +6249,7 @@ $(document).ready(function(){
         let this_openai_max_context;
 
         if (main_api === 'openai') {
+            
             switch (model_openai) {
                 case 'gpt-4':
                     this_openai_max_context = 8192;
@@ -6178,6 +6274,12 @@ $(document).ready(function(){
                     break;
                 case 'text-ada-001':
                     this_openai_max_context = 2049;
+                    break;
+                case 'gpt-4-1106-preview':
+                    this_openai_max_context = 128000;
+                    break;
+                case 'gpt-4-vision-preview':
+                    this_openai_max_context = 128000;
                     break;
                 default:
                     this_openai_max_context = 4096;
@@ -6290,7 +6392,16 @@ $(document).ready(function(){
                                 value: 'gpt-3.5-turbo',
                                 text: 'gpt-3.5-turbo'
                             }));
+                            $('#model_openai_select').append($('<option>', {
+                                value: 'claude-v1.3',
+                                text: 'claude-v1.3'
+                            }));
+                            $('#model_openai_select').append($('<option>', {
+                                value: 'claude-v1.2',
+                                text: 'claude-v1.2'
+                            }));
                             let is_mode_exist = false;
+                            
                             data.data.forEach(function(item, i){
                                 if(model_proxy === item.id) is_mode_exist = true;
                                 $('#model_openai_select').append($('<option>', {
